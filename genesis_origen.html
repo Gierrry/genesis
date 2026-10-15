@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DOCTYPE_html</title>
+</head>
+<body>
+<p>&lt;!DOCTYPE html&gt;</p>
+<p>&lt;html lang="fr"&gt;</p>
+<p>&lt;head&gt;</p>
+<p>&lt;meta charset="UTF-8"&gt;</p>
+<p>&lt;meta name="viewport" content="width=device-width, initial-scale=1"&gt;</p>
+<p>&lt;title&gt;GENESIS — ORIGEN&lt;/title&gt;</p>
+<p>&lt;style&gt;</p>
+<p>&nbsp; body { font-family: monospace; background: #0a0a0a; color: #e0e0e0;</p>
+<p>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;padding: 16px; font-size: 13px; line-height: 1.5; }</p>
+<p>&nbsp; h1 { font-size: 12px; color: #666; margin-bottom: 4px; }</p>
+<p>&nbsp; h2 { font-size: 13px; color: #aaa; margin-top: 20px;</p>
+<p>&nbsp; &nbsp; &nbsp; &nbsp;border-bottom: 1px solid #222; padding-bottom: 4px; }</p>
+<p>&nbsp; .ok { color: #6f6; }</p>
+<p>&nbsp; .fail { color: #f66; }</p>
+<p>&nbsp; .dim { color: #666; }</p>
+<p>&nbsp; pre { white-space: pre-wrap; word-break: break-word; margin: 4px 0; }</p>
+<p>&lt;/style&gt;</p>
+<p>&lt;/head&gt;</p>
+<p>&lt;body&gt;</p>
+<p>&lt;h1&gt;GENESIS — ORIGEN — Month 0, Week 1, Day 0.&lt;/h1&gt;</p>
+<p>&lt;div id="out"&gt;&lt;/div&gt;</p>
+<p>&lt;script&gt;</p>
+<p>"use strict";</p>
+<p>/* =====================================================================</p>
+<p>&nbsp; &nbsp;GLYPH v0.0.1 — Interpréteur minimal (JavaScript)</p>
+<p>&nbsp; &nbsp;— ORIGEN</p>
+<p>&nbsp; &nbsp;===================================================================== */</p>
+<p>class GlyphError extends Error {}</p>
+<p>class Memory {</p>
+<p>&nbsp; constructor() { this.store = {}; }</p>
+<p>&nbsp; write(key, value) {</p>
+<p>&nbsp; &nbsp; if (Object.prototype.hasOwnProperty.call(this.store, key)) {</p>
+<p>&nbsp; &nbsp; &nbsp; const existing = this.store[key];</p>
+<p>&nbsp; &nbsp; &nbsp; if (Array.isArray(existing)) existing.push(value);</p>
+<p>&nbsp; &nbsp; &nbsp; else this.store[key] = [existing, value];</p>
+<p>&nbsp; &nbsp; } else {</p>
+<p>&nbsp; &nbsp; &nbsp; this.store[key] = value;</p>
+<p>&nbsp; &nbsp; }</p>
+<p>&nbsp; }</p>
+<p>&nbsp; read(key) {</p>
+<p>&nbsp; &nbsp; if (!Object.prototype.hasOwnProperty.call(this.store, key)) {</p>
+<p>&nbsp; &nbsp; &nbsp; throw new GlyphError(`Mémoire : clé inconnue '${key}'`);</p>
+<p>&nbsp; &nbsp; }</p>
+<p>&nbsp; &nbsp; return this.store[key];</p>
+<p>&nbsp; }</p>
+<p>&nbsp; delete(key) { delete this.store[key]; }</p>
+<p>&nbsp; snapshot() { return { ...this.store }; }</p>
+<p>}</p>
+<p>class WorkingMemory {</p>
+<p>&nbsp; constructor() { this.stack = []; }</p>
+<p>&nbsp; push(v) { this.stack.push(v); }</p>
+<p>&nbsp; top() {</p>
+<p>&nbsp; &nbsp; if (!this.stack.length) throw new GlyphError("Mémoire de travail vide");</p>
+<p>&nbsp; &nbsp; return this.stack[this.stack.length - 1];</p>
+<p>&nbsp; }</p>
+<p>&nbsp; clear() { this.stack = []; }</p>
+<p>}</p>
+<p>class Interpreter {</p>
+<p>&nbsp; constructor(proofChecker = null) {</p>
+<p>&nbsp; &nbsp; this.memory = new Memory();</p>
+<p>&nbsp; &nbsp; this.working = new WorkingMemory();</p>
+<p>&nbsp; &nbsp; this.proofChecker = proofChecker;</p>
+<p>&nbsp; }</p>
+<p>&nbsp; parseLine(raw) {</p>
+<p>&nbsp; &nbsp; const line = raw.trim();</p>
+<p>&nbsp; &nbsp; if (!line || line.startsWith("#")) return null;</p>
+<p>&nbsp; &nbsp; const idx = line.indexOf(" ");</p>
+<p>&nbsp; &nbsp; let keyword, rest;</p>
+<p>&nbsp; &nbsp; if (idx === -1) { keyword = line.toLowerCase(); rest = ""; }</p>
+<p>&nbsp; &nbsp; else { keyword = line.slice(0, idx).toLowerCase(); rest = line.slice(idx + 1); }</p>
+<p>&nbsp; &nbsp; if (keyword === "ecris" || keyword === "ecrit" || keyword === "écrit") keyword = "écris";</p>
+<p>&nbsp; &nbsp; const valid = ["pense", "écris", "lis", "prouve", "oublie"];</p>
+<p>&nbsp; &nbsp; if (!valid.includes(keyword)) {</p>
+<p>&nbsp; &nbsp; &nbsp; throw new GlyphError(`Opération inconnue : '${keyword}'`);</p>
+<p>&nbsp; &nbsp; }</p>
+<p>&nbsp; &nbsp; return [keyword, rest];</p>
+<p>&nbsp; }</p>
+<p>&nbsp; execute(program) {</p>
+<p>&nbsp; &nbsp; for (const raw of program.split(/\r?\n/)) {</p>
+<p>&nbsp; &nbsp; &nbsp; const parsed = this.parseLine(raw);</p>
+<p>&nbsp; &nbsp; &nbsp; if (!parsed) continue;</p>
+<p>&nbsp; &nbsp; &nbsp; const [kw, rest] = parsed;</p>
+<p>&nbsp; &nbsp; &nbsp; this.dispatch(kw, rest);</p>
+<p>&nbsp; &nbsp; }</p>
+<p>&nbsp; &nbsp; return this.memory.snapshot();</p>
+<p>&nbsp; }</p>
+<p>&nbsp; dispatch(keyword, rest) {</p>
+<p>&nbsp; &nbsp; switch (keyword) {</p>
+<p>&nbsp; &nbsp; &nbsp; case "pense": return this._op_pense(rest);</p>
+<p>&nbsp; &nbsp; &nbsp; case "écris": return this._op_ecris(rest);</p>
+<p>&nbsp; &nbsp; &nbsp; case "lis": return this._op_lis(rest);</p>
+<p>&nbsp; &nbsp; &nbsp; case "prouve": return this._op_prouve(rest);</p>
+<p>&nbsp; &nbsp; &nbsp; case "oublie": return this._op_oublie(rest);</p>
+<p>&nbsp; &nbsp; &nbsp; default:</p>
+<p>&nbsp; &nbsp; &nbsp; &nbsp; throw new GlyphError(`Opération inconnue : '${keyword}'`);</p>
+<p>&nbsp; &nbsp; }</p>
+<p>&nbsp; }</p>
+<p>&nbsp; _op_pense(arg) {</p>
+<p>&nbsp; &nbsp; this.working.push(this._resolve(arg));</p>
+<p>&nbsp; }</p>
+<p>&nbsp; _op_ecris(arg) {</p>
+<p>&nbsp; &nbsp; if (!arg.includes(" dans ")) throw new GlyphError("ÉCRIS attend 'X dans M.Y'");</p>
+<p>&nbsp; &nbsp; const i = arg.indexOf(" dans ");</p>
+<p>&nbsp; &nbsp; const left = arg.slice(0, i);</p>
+<p>&nbsp; &nbsp; const right = arg.slice(i + 6);</p>
+<p>&nbsp; &nbsp; const value = this._resolve(left.trim());</p>
+<p>&nbsp; &nbsp; const key = right.trim();</p>
+<p>&nbsp; &nbsp; if (!key.startsWith("M.")) throw new GlyphError("ÉCRIS : cible doit commencer par 'M.'");</p>
+<p>&nbsp; &nbsp; this.memory.write(key.slice(2), value);</p>
+<p>&nbsp; }</p>
+<p>&nbsp; _op_lis(arg) {</p>
+<p>&nbsp; &nbsp; if (!arg.includes(" comme ")) throw new GlyphError("LIS attend 'M.X comme Y'");</p>
+<p>&nbsp; &nbsp; const i = arg.indexOf(" comme ");</p>
+<p>&nbsp; &nbsp; const src = arg.slice(0, i).trim();</p>
+<p>&nbsp; &nbsp; const name = arg.slice(i + 7).trim();</p>
+<p>&nbsp; &nbsp; if (!src.startsWith("M.")) throw new GlyphError("LIS : source doit commencer par 'M.'");</p>
+<p>&nbsp; &nbsp; this.memory.write(name, this.memory.read(src.slice(2)));</p>
+<p>&nbsp; }</p>
+<p>&nbsp; _op_prouve(arg) {</p>
+<p>&nbsp; &nbsp; const expr = arg.trim();</p>
+<p>&nbsp; &nbsp; if (!expr.includes("==")) throw new GlyphError("PROUVE : forme 'X == Y' seulement");</p>
+<p>&nbsp; &nbsp; const i = expr.indexOf("==");</p>
+<p>&nbsp; &nbsp; const lval = this._resolve(expr.slice(0, i).trim());</p>
+<p>&nbsp; &nbsp; const rval = this._resolve(expr.slice(i + 2).trim());</p>
+<p>&nbsp; &nbsp; this.memory.write("preuve", lval === rval ? "VALIDE" : "INVALIDE");</p>
+<p>&nbsp; }</p>
+<p>&nbsp; _op_oublie(arg) {</p>
+<p>&nbsp; &nbsp; const key = arg.trim();</p>
+<p>&nbsp; &nbsp; if (!key.startsWith("M.")) throw new GlyphError("OUBLIE : cible doit commencer par 'M.'");</p>
+<p>&nbsp; &nbsp; this.memory.delete(key.slice(2));</p>
+<p>&nbsp; }</p>
+<p>&nbsp; _resolve(token) {</p>
+<p>&nbsp; &nbsp; token = token.trim();</p>
+<p>&nbsp; &nbsp; if (!token) throw new GlyphError("Symbole vide");</p>
+<p>&nbsp; &nbsp; const isNumber = /^-?\d+(\.\d+)?$/.test(token);</p>
+<p>&nbsp; &nbsp; if (token.includes(".") &amp;&amp; !isNumber) {</p>
+<p>&nbsp; &nbsp; &nbsp; const dot = token.indexOf(".");</p>
+<p>&nbsp; &nbsp; &nbsp; const head = token.slice(0, dot);</p>
+<p>&nbsp; &nbsp; &nbsp; const tail = token.slice(dot + 1);</p>
+<p>&nbsp; &nbsp; &nbsp; const base = this.memory.read(head);</p>
+<p>&nbsp; &nbsp; &nbsp; if (tail === "somme" &amp;&amp; Array.isArray(base)) {</p>
+<p>&nbsp; &nbsp; &nbsp; &nbsp; return base.reduce((a, b) =&gt; a + b, 0);</p>
+<p>&nbsp; &nbsp; &nbsp; }</p>
+<p>&nbsp; &nbsp; &nbsp; if (base &amp;&amp; typeof base === "object" &amp;&amp; !Array.isArray(base)) {</p>
+<p>&nbsp; &nbsp; &nbsp; &nbsp; if (!(tail in base)) {</p>
+<p>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; throw new GlyphError(`Champ inconnu '${tail}' dans '${head}'`);</p>
+<p>&nbsp; &nbsp; &nbsp; &nbsp; }</p>
+<p>&nbsp; &nbsp; &nbsp; &nbsp; return base[tail];</p>
+<p>&nbsp; &nbsp; &nbsp; }</p>
+<p>&nbsp; &nbsp; &nbsp; throw new GlyphError(`Référence mémoire invalide : '${token}'`);</p>
+<p>&nbsp; &nbsp; }</p>
+<p>&nbsp; &nbsp; if (token.startsWith("[") &amp;&amp; token.endsWith("]")) {</p>
+<p>&nbsp; &nbsp; &nbsp; const inner = token.slice(1, -1).trim();</p>
+<p>&nbsp; &nbsp; &nbsp; if (!inner) return [];</p>
+<p>&nbsp; &nbsp; &nbsp; return inner.split(",").map(x =&gt; this._resolve(x));</p>
+<p>&nbsp; &nbsp; }</p>
+<p>&nbsp; &nbsp; if (/^-?\d+$/.test(token)) return parseInt(token, 10);</p>
+<p>&nbsp; &nbsp; if (/^-?\d+\.\d+$/.test(token)) return parseFloat(token);</p>
+<p>&nbsp; &nbsp; return token;</p>
+<p>&nbsp; }</p>
+<p>}</p>
+<p>/* =====================================================================</p>
+<p>&nbsp; &nbsp;SERMENT v0.1 — Vérificateur minimal (JavaScript)</p>
+<p>&nbsp; &nbsp;— ORIGEN</p>
+<p>&nbsp; &nbsp;===================================================================== */</p>
+<p>class LocalCoherenceError extends Error {}</p>
+<p>class UnknownRule extends Error {}</p>
+<p>/* --- Utilitaires de Set --- */</p>
+<p>function setEq(a, b) {</p>
+<p>&nbsp; if (a.size !== b.size) return false;</p>
+<p>&nbsp; for (const x of a) if (!b.has(x)) return false;</p>
+<p>&nbsp; return true;</p>
+<p>}</p>
+<p>function setUnion(...sets) {</p>
+<p>&nbsp; const r = new Set();</p>
+<p>&nbsp; for (const s of sets) for (const x of s) r.add(x);</p>
+<p>&nbsp; return r;</p>
+<p>}</p>
+<p>function setDiff(a, b) {</p>
+<p>&nbsp; const r = new Set();</p>
+<p>&nbsp; for (const x of a) if (!b.has(x)) r.add(x);</p>
+<p>&nbsp; return r;</p>
+<p>}</p>
+<p>function formatSet(s) {</p>
+<p>&nbsp; if (s.size === 0) return "set()";</p>
+<p>&nbsp; const arr = Array.from(s).sort();</p>
+<p>&nbsp; return "{" + arr.map(x =&gt; `'${x}'`).join(", ") + "}";</p>
+<p>}</p>
+<p>/* --- Parser --- */</p>
+<p>function stripParens(s) {</p>
+<p>&nbsp; s = s.trim();</p>
+<p>&nbsp; while (s.startsWith("(") &amp;&amp; s.endsWith(")")) {</p>
+<p>&nbsp; &nbsp; let depth = 0, ok = true;</p>
+<p>&nbsp; &nbsp; for (let i = 0; i &lt; s.length; i++) {</p>
+<p>&nbsp; &nbsp; &nbsp; const c = s[i];</p>
+<p>&nbsp; &nbsp; &nbsp; if (c === "(") depth++;</p>
+<p>&nbsp; &nbsp; &nbsp; else if (c === ")") {</p>
+<p>&nbsp; &nbsp; &nbsp; &nbsp; depth--;</p>
+<p>&nbsp; &nbsp; &nbsp; &nbsp; if (depth === 0 &amp;&amp; i !== s.length - 1) { ok = false; break; }</p>
+<p>&nbsp; &nbsp; &nbsp; }</p>
+<p>&nbsp; &nbsp; }</p>
+<p>&nbsp; &nbsp; if (!ok) break;</p>
+<p>&nbsp; &nbsp; s = s.slice(1, -1).trim();</p>
+<p>&nbsp; }</p>
+<p>&nbsp; return s;</p>
+<p>}</p>
+<p>function splitTop(formula, op) {</p>
+<p>&nbsp; let depth = 0;</p>
+<p>&nbsp; for (let i = 0; i &lt; formula.length; i++) {</p>
+<p>&nbsp; &nbsp; const c = formula[i];</p>
+<p>&nbsp; &nbsp; if (c === "(") depth++;</p>
+<p>&nbsp; &nbsp; else if (c === ")") depth--;</p>
+<p>&nbsp; &nbsp; else if (depth === 0 &amp;&amp; formula.slice(i, i + op.length) === op) {</p>
+<p>&nbsp; &nbsp; &nbsp; const left = formula.slice(0, i).trim();</p>
+<p>&nbsp; &nbsp; &nbsp; const right = formula.slice(i + op.length).trim();</p>
+<p>&nbsp; &nbsp; &nbsp; if (!left || !right) {</p>
+<p>&nbsp; &nbsp; &nbsp; &nbsp; throw new Error(`Formule mal formée autour de '${op}' : ${formula}`);</p>
+<p>&nbsp; &nbsp; &nbsp; }</p>
+<p>&nbsp; &nbsp; &nbsp; return [left, right];</p>
+<p>&nbsp; &nbsp; }</p>
+<p>&nbsp; }</p>
+<p>&nbsp; throw new Error(`Opérateur '${op}' introuvable au niveau supérieur : ${formula}`);</p>
+<p>}</p>
+<p>function splitImplication(f) { return splitTop(f, "→"); }</p>
+<p>function splitConjunction(f) { return splitTop(f, "∧"); }</p>
+<p>function splitContext(text) {</p>
+<p>&nbsp; const parts = [];</p>
+<p>&nbsp; let depth = 0, current = "";</p>
+<p>&nbsp; for (const c of text) {</p>
+<p>&nbsp; &nbsp; if (c === "(") { depth++; current += c; }</p>
+<p>&nbsp; &nbsp; else if (c === ")") { depth--; current += c; }</p>
+<p>&nbsp; &nbsp; else if (c === "," &amp;&amp; depth === 0) { parts.push(current.trim()); current = ""; }</p>
+<p>&nbsp; &nbsp; else current += c;</p>
+<p>&nbsp; }</p>
+<p>&nbsp; if (current) parts.push(current.trim());</p>
+<p>&nbsp; return parts.filter(p =&gt; p).map(stripParens);</p>
+<p>}</p>
+<p>function parseJudgment(text) {</p>
+<p>&nbsp; if (!text.includes("⊢")) throw new Error(`Jugement sans ⊢ : ${text}`);</p>
+<p>&nbsp; const idx = text.indexOf("⊢");</p>
+<p>&nbsp; const left = text.slice(0, idx).trim();</p>
+<p>&nbsp; const right = stripParens(text.slice(idx + 1).trim());</p>
+<p>&nbsp; if (!right) throw new Error(`Conclusion vide dans : ${text}`);</p>
+<p>&nbsp; let ctx;</p>
+<p>&nbsp; if (left === "" || left === "∅") ctx = new Set();</p>
+<p>&nbsp; else ctx = new Set(splitContext(left));</p>
+<p>&nbsp; return { context: ctx, conclusion: right };</p>
+<p>}</p>
+<p>/* --- Cohérence locale --- */</p>
+<p>function checkLocalCoherence(node) {</p>
+<p>&nbsp; const rule = node.rule;</p>
+<p>&nbsp; const prems = node.premises;</p>
+<p>&nbsp; const conc = parseJudgment(node.conclusion);</p>
+<p>&nbsp; switch (rule) {</p>
+<p>&nbsp; &nbsp; case "AX": return _checkAx(conc, prems);</p>
+<p>&nbsp; &nbsp; case "→R": return _checkImplRight(conc, prems);</p>
+<p>&nbsp; &nbsp; case "→L": return _checkImplLeft(conc, prems);</p>
+<p>&nbsp; &nbsp; case "∧R": return _checkConjRight(conc, prems);</p>
+<p>&nbsp; &nbsp; case "∧L": return _checkConjLeft(conc, prems);</p>
+<p>&nbsp; &nbsp; case "⊤R": return _checkTop(conc);</p>
+<p>&nbsp; &nbsp; default: throw new LocalCoherenceError(`Règle inconnue : ${rule}`);</p>
+<p>&nbsp; }</p>
+<p>}</p>
+<p>function _checkAx(conc, prems) {</p>
+<p>&nbsp; if (prems.length !== 0) throw new LocalCoherenceError("AX ne doit avoir aucune prémisse");</p>
+<p>&nbsp; if (!conc.context.has(conc.conclusion)) {</p>
+<p>&nbsp; &nbsp; throw new LocalCoherenceError(</p>
+<p>&nbsp; &nbsp; &nbsp; `AX : '${conc.conclusion}' n'appartient pas au contexte ${formatSet(conc.context)}`</p>
+<p>&nbsp; &nbsp; );</p>
+<p>&nbsp; }</p>
+<p>}</p>
+<p>function _checkImplRight(conc, prems) {</p>
+<p>&nbsp; if (prems.length !== 1) throw new LocalCoherenceError("→R attend exactement une prémisse");</p>
+<p>&nbsp; const prem = parseJudgment(prems[0].conclusion);</p>
+<p>&nbsp; let A, B;</p>
+<p>&nbsp; try { [A, B] = splitImplication(conc.conclusion); }</p>
+<p>&nbsp; catch (e) { throw new LocalCoherenceError(`→R : conclusion n'est pas une implication (${e.message})`); }</p>
+<p>&nbsp; const expectedCtx = setUnion(conc.context, new Set([A]));</p>
+<p>&nbsp; if (!setEq(prem.context, expectedCtx)) {</p>
+<p>&nbsp; &nbsp; throw new LocalCoherenceError(</p>
+<p>&nbsp; &nbsp; &nbsp; `→R : contexte de la prémisse ${formatSet(prem.context)} ≠ attendu ${formatSet(expectedCtx)}`</p>
+<p>&nbsp; &nbsp; );</p>
+<p>&nbsp; }</p>
+<p>&nbsp; if (stripParens(prem.conclusion) !== stripParens(B)) {</p>
+<p>&nbsp; &nbsp; throw new LocalCoherenceError(</p>
+<p>&nbsp; &nbsp; &nbsp; `→R : conclusion de la prémisse '${prem.conclusion}' ≠ '${B}'`</p>
+<p>&nbsp; &nbsp; );</p>
+<p>&nbsp; }</p>
+<p>}</p>
+<p>/* === VERSION CORRIGÉE v0.1.1 === */</p>
+<p>function _checkImplLeft(conc, prems) {</p>
+<p>&nbsp; if (prems.length !== 2) throw new LocalCoherenceError("→L attend exactement deux prémisses");</p>
+<p>&nbsp; const prem1 = parseJudgment(prems[0].conclusion);</p>
+<p>&nbsp; const prem2 = parseJudgment(prems[1].conclusion);</p>
+<p>&nbsp; // Trouver A → B dans le contexte de la conclusion</p>
+<p>&nbsp; let impl = null;</p>
+<p>&nbsp; for (const f of conc.context) {</p>
+<p>&nbsp; &nbsp; try {</p>
+<p>&nbsp; &nbsp; &nbsp; const [A, B] = splitImplication(f);</p>
+<p>&nbsp; &nbsp; &nbsp; impl = { formula: f, A, B };</p>
+<p>&nbsp; &nbsp; &nbsp; break;</p>
+<p>&nbsp; &nbsp; } catch (_) { /* continue */ }</p>
+<p>&nbsp; }</p>
+<p>&nbsp; if (!impl) {</p>
+<p>&nbsp; &nbsp; throw new LocalCoherenceError(</p>
+<p>&nbsp; &nbsp; &nbsp; "→L : aucune implication trouvée dans le contexte de la conclusion"</p>
+<p>&nbsp; &nbsp; );</p>
+<p>&nbsp; }</p>
+<p>&nbsp; const { formula: implFormula, A, B: implB } = impl;</p>
+<p>&nbsp; // prem1.conclusion doit être A</p>
+<p>&nbsp; if (stripParens(prem1.conclusion) !== stripParens(A)) {</p>
+<p>&nbsp; &nbsp; throw new LocalCoherenceError(</p>
+<p>&nbsp; &nbsp; &nbsp; `→L : conclusion gauche '${prem1.conclusion}' ≠ '${A}'`</p>
+<p>&nbsp; &nbsp; );</p>
+<p>&nbsp; }</p>
+<p>&nbsp; // prem2.conclusion doit être conc.conclusion</p>
+<p>&nbsp; if (stripParens(prem2.conclusion) !== stripParens(conc.conclusion)) {</p>
+<p>&nbsp; &nbsp; throw new LocalCoherenceError(</p>
+<p>&nbsp; &nbsp; &nbsp; `→L : conclusion droite '${prem2.conclusion}' ≠ '${conc.conclusion}'`</p>
+<p>&nbsp; &nbsp; );</p>
+<p>&nbsp; }</p>
+<p>&nbsp; // implB (conséquent de l'implication) doit être dans le contexte de prem2</p>
+<p>&nbsp; if (!prem2.context.has(implB)) {</p>
+<p>&nbsp; &nbsp; throw new LocalCoherenceError(</p>
+<p>&nbsp; &nbsp; &nbsp; `→L : '${implB}' n'appartient pas au contexte droit ${formatSet(prem2.context)}`</p>
+<p>&nbsp; &nbsp; );</p>
+<p>&nbsp; }</p>
+<p>&nbsp; // conc.context == prem1.context ∪ (prem2.context - {implB}) ∪ {implFormula}</p>
+<p>&nbsp; const expectedCtx = setUnion(</p>
+<p>&nbsp; &nbsp; prem1.context,</p>
+<p>&nbsp; &nbsp; setDiff(prem2.context, new Set([implB])),</p>
+<p>&nbsp; &nbsp; new Set([implFormula])</p>
+<p>&nbsp; );</p>
+<p>&nbsp; if (!setEq(conc.context, expectedCtx)) {</p>
+<p>&nbsp; &nbsp; throw new LocalCoherenceError(</p>
+<p>&nbsp; &nbsp; &nbsp; `→L : contexte de la conclusion ${formatSet(conc.context)} ≠ attendu ${formatSet(expectedCtx)}`</p>
+<p>&nbsp; &nbsp; );</p>
+<p>&nbsp; }</p>
+<p>}</p>
+<p>function _checkConjRight(conc, prems) {</p>
+<p>&nbsp; if (prems.length !== 2) throw new LocalCoherenceError("∧R attend exactement deux prémisses");</p>
+<p>&nbsp; const prem1 = parseJudgment(prems[0].conclusion);</p>
+<p>&nbsp; const prem2 = parseJudgment(prems[1].conclusion);</p>
+<p>&nbsp; let A, B;</p>
+<p>&nbsp; try { [A, B] = splitConjunction(conc.conclusion); }</p>
+<p>&nbsp; catch (e) { throw new LocalCoherenceError(`∧R : conclusion n'est pas une conjonction (${e.message})`); }</p>
+<p>&nbsp; if (!setEq(prem1.context, conc.context)) {</p>
+<p>&nbsp; &nbsp; throw new LocalCoherenceError("∧R : contexte prémisse gauche ≠ contexte conclusion");</p>
+<p>&nbsp; }</p>
+<p>&nbsp; if (!setEq(prem2.context, conc.context)) {</p>
+<p>&nbsp; &nbsp; throw new LocalCoherenceError("∧R : contexte prémisse droite ≠ contexte conclusion");</p>
+<p>&nbsp; }</p>
+<p>&nbsp; if (stripParens(prem1.conclusion) !== stripParens(A)) {</p>
+<p>&nbsp; &nbsp; throw new LocalCoherenceError(`∧R : conclusion gauche '${prem1.conclusion}' ≠ '${A}'`);</p>
+<p>&nbsp; }</p>
+<p>&nbsp; if (stripParens(prem2.conclusion) !== stripParens(B)) {</p>
+<p>&nbsp; &nbsp; throw new LocalCoherenceError(`∧R : conclusion droite '${prem2.conclusion}' ≠ '${B}'`);</p>
+<p>&nbsp; }</p>
+<p>}</p>
+<p>function _checkConjLeft(conc, prems) {</p>
+<p>&nbsp; if (prems.length !== 1) throw new LocalCoherenceError("∧L attend exactement une prémisse");</p>
+<p>&nbsp; const prem = parseJudgment(prems[0].conclusion);</p>
+<p>&nbsp; let conj = null;</p>
+<p>&nbsp; for (const f of conc.context) {</p>
+<p>&nbsp; &nbsp; try {</p>
+<p>&nbsp; &nbsp; &nbsp; const [A, B] = splitConjunction(f);</p>
+<p>&nbsp; &nbsp; &nbsp; conj = [f, A, B];</p>
+<p>&nbsp; &nbsp; &nbsp; break;</p>
+<p>&nbsp; &nbsp; } catch (_) { /* continue */ }</p>
+<p>&nbsp; }</p>
+<p>&nbsp; if (!conj) {</p>
+<p>&nbsp; &nbsp; throw new LocalCoherenceError(</p>
+<p>&nbsp; &nbsp; &nbsp; "∧L : aucune conjonction trouvée dans le contexte de la conclusion"</p>
+<p>&nbsp; &nbsp; );</p>
+<p>&nbsp; }</p>
+<p>&nbsp; const [conjFormula, A, B] = conj;</p>
+<p>&nbsp; const expectedCtx = setUnion(setDiff(conc.context, new Set([conjFormula])), new Set([A, B]));</p>
+<p>&nbsp; if (!setEq(prem.context, expectedCtx)) {</p>
+<p>&nbsp; &nbsp; throw new LocalCoherenceError(</p>
+<p>&nbsp; &nbsp; &nbsp; `∧L : contexte ${formatSet(prem.context)} ≠ attendu ${formatSet(expectedCtx)}`</p>
+<p>&nbsp; &nbsp; );</p>
+<p>&nbsp; }</p>
+<p>&nbsp; if (stripParens(prem.conclusion) !== stripParens(conc.conclusion)) {</p>
+<p>&nbsp; &nbsp; throw new LocalCoherenceError(</p>
+<p>&nbsp; &nbsp; &nbsp; `∧L : conclusion '${prem.conclusion}' ≠ '${conc.conclusion}'`</p>
+<p>&nbsp; &nbsp; );</p>
+<p>&nbsp; }</p>
+<p>}</p>
+<p>function _checkTop(conc) {</p>
+<p>&nbsp; if (conc.conclusion !== "⊤") {</p>
+<p>&nbsp; &nbsp; throw new LocalCoherenceError(`⊤R : conclusion '${conc.conclusion}' ≠ '⊤'`);</p>
+<p>&nbsp; }</p>
+<p>}</p>
+<p>/* --- Ledger (version démo : hash simplifié, en mémoire) --- */</p>
+<p>const Ledger = {</p>
+<p>&nbsp; entries: [],</p>
+<p>&nbsp; hashEntry(entry) {</p>
+<p>&nbsp; &nbsp; // NOTE v0.1 : hash simplifié pour démo mobile. Non cryptographique.</p>
+<p>&nbsp; &nbsp; // À remplacer par crypto.subtle.digest (SHA-256) en v0.2.</p>
+<p>&nbsp; &nbsp; const str = JSON.stringify(entry, Object.keys(entry).sort());</p>
+<p>&nbsp; &nbsp; let h1 = 0x811c9dc5 &gt;&gt;&gt; 0, h2 = 0x1000193 &gt;&gt;&gt; 0;</p>
+<p>&nbsp; &nbsp; for (let i = 0; i &lt; str.length; i++) {</p>
+<p>&nbsp; &nbsp; &nbsp; const c = str.charCodeAt(i);</p>
+<p>&nbsp; &nbsp; &nbsp; h1 ^= c; h1 = Math.imul(h1, 0x01000193) &gt;&gt;&gt; 0;</p>
+<p>&nbsp; &nbsp; &nbsp; h2 = (Math.imul(h2, 31) + c) &gt;&gt;&gt; 0;</p>
+<p>&nbsp; &nbsp; }</p>
+<p>&nbsp; &nbsp; let out = "";</p>
+<p>&nbsp; &nbsp; for (let i = 0; i &lt; 4; i++) {</p>
+<p>&nbsp; &nbsp; &nbsp; out += (h1 &gt;&gt;&gt; 0).toString(16).padStart(8, "0");</p>
+<p>&nbsp; &nbsp; &nbsp; out += (h2 &gt;&gt;&gt; 0).toString(16).padStart(8, "0");</p>
+<p>&nbsp; &nbsp; }</p>
+<p>&nbsp; &nbsp; return out.slice(0, 64);</p>
+<p>&nbsp; },</p>
+<p>&nbsp; append(judgment, derivationId, status) {</p>
+<p>&nbsp; &nbsp; const prev = this.entries.length ? this.entries[this.entries.length - 1].this_hash : "0".repeat(64);</p>
+<p>&nbsp; &nbsp; const entry = {</p>
+<p>&nbsp; &nbsp; &nbsp; seq: this.entries.length,</p>
+<p>&nbsp; &nbsp; &nbsp; prev_hash: prev,</p>
+<p>&nbsp; &nbsp; &nbsp; timestamp: new Date().toISOString().replace(/\.\d+Z$/, "Z"),</p>
+<p>&nbsp; &nbsp; &nbsp; judgment, derivation_id: derivationId, status,</p>
+<p>&nbsp; &nbsp; };</p>
+<p>&nbsp; &nbsp; entry.this_hash = this.hashEntry(entry);</p>
+<p>&nbsp; &nbsp; this.entries.push(entry);</p>
+<p>&nbsp; &nbsp; return entry;</p>
+<p>&nbsp; },</p>
+<p>&nbsp; verify() {</p>
+<p>&nbsp; &nbsp; let prev = "0".repeat(64);</p>
+<p>&nbsp; &nbsp; for (const e of this.entries) {</p>
+<p>&nbsp; &nbsp; &nbsp; if (e.prev_hash !== prev) return false;</p>
+<p>&nbsp; &nbsp; &nbsp; const recomputed = this.hashEntry(</p>
+<p>&nbsp; &nbsp; &nbsp; &nbsp; Object.fromEntries(Object.entries(e).filter(([k]) =&gt; k !== "this_hash"))</p>
+<p>&nbsp; &nbsp; &nbsp; );</p>
+<p>&nbsp; &nbsp; &nbsp; if (recomputed !== e.this_hash) return false;</p>
+<p>&nbsp; &nbsp; &nbsp; prev = e.this_hash;</p>
+<p>&nbsp; &nbsp; }</p>
+<p>&nbsp; &nbsp; return true;</p>
+<p>&nbsp; },</p>
+<p>&nbsp; reset() { this.entries = []; },</p>
+<p>};</p>
+<p>/* --- Verify --- */</p>
+<p>const KNOWN_RULES = new Set(["AX", "→R", "→L", "∧R", "∧L", "⊤R"]);</p>
+<p>const ARITY = { "AX": 0, "→R": 1, "→L": 2, "∧R": 2, "∧L": 1, "⊤R": 0 };</p>
+<p>function nodeId(node) {</p>
+<p>&nbsp; const str = JSON.stringify({ conclusion: node.conclusion, rule: node.rule });</p>
+<p>&nbsp; return Ledger.hashEntry({ s: str }).slice(0, 12);</p>
+<p>}</p>
+<p>function verify(derivation, expected = null, useLedger = true) {</p>
+<p>&nbsp; try {</p>
+<p>&nbsp; &nbsp; _checkStructure(derivation);</p>
+<p>&nbsp; &nbsp; _checkRuleKnown(derivation);</p>
+<p>&nbsp; &nbsp; _checkArity(derivation);</p>
+<p>&nbsp; &nbsp; _checkAllLocal(derivation);</p>
+<p>&nbsp; } catch (e) {</p>
+<p>&nbsp; &nbsp; if (e instanceof UnknownRule) {</p>
+<p>&nbsp; &nbsp; &nbsp; if (useLedger) Ledger.append(derivation.conclusion || "?", nodeId(derivation), "INCONNU");</p>
+<p>&nbsp; &nbsp; &nbsp; return `INCONNU: ${e.message}`;</p>
+<p>&nbsp; &nbsp; }</p>
+<p>&nbsp; &nbsp; if (useLedger) Ledger.append(derivation.conclusion || "?", nodeId(derivation), "INVALIDE");</p>
+<p>&nbsp; &nbsp; return `INVALIDE: ${e.message}`;</p>
+<p>&nbsp; }</p>
+<p>&nbsp; if (expected !== null &amp;&amp; derivation.conclusion !== expected) {</p>
+<p>&nbsp; &nbsp; if (useLedger) Ledger.append(derivation.conclusion, nodeId(derivation), "INVALIDE");</p>
+<p>&nbsp; &nbsp; return `INVALIDE: conclusion '${derivation.conclusion}' ≠ attendu '${expected}'`;</p>
+<p>&nbsp; }</p>
+<p>&nbsp; if (useLedger) Ledger.append(derivation.conclusion, nodeId(derivation), "VALIDE");</p>
+<p>&nbsp; return "VALIDE";</p>
+<p>}</p>
+<p>function _checkStructure(node) {</p>
+<p>&nbsp; if (typeof node !== "object" || node === null) throw new TypeError("Nœud invalide : pas un objet");</p>
+<p>&nbsp; for (const f of ["conclusion", "rule", "premises"]) {</p>
+<p>&nbsp; &nbsp; if (!(f in node)) throw new Error(`Champ manquant : '${f}'`);</p>
+<p>&nbsp; }</p>
+<p>&nbsp; if (!Array.isArray(node.premises)) throw new TypeError("'premises' doit être un tableau");</p>
+<p>&nbsp; for (const p of node.premises) _checkStructure(p);</p>
+<p>}</p>
+<p>function _checkRuleKnown(node) {</p>
+<p>&nbsp; if (!KNOWN_RULES.has(node.rule)) throw new UnknownRule(node.rule);</p>
+<p>&nbsp; for (const p of node.premises) _checkRuleKnown(p);</p>
+<p>}</p>
+<p>function _checkArity(node) {</p>
+<p>&nbsp; const expected = ARITY[node.rule];</p>
+<p>&nbsp; if (node.premises.length !== expected) {</p>
+<p>&nbsp; &nbsp; throw new Error(</p>
+<p>&nbsp; &nbsp; &nbsp; `Règle ${node.rule} attend ${expected} prémisse(s), reçu ${node.premises.length}`</p>
+<p>&nbsp; &nbsp; );</p>
+<p>&nbsp; }</p>
+<p>&nbsp; for (const p of node.premises) _checkArity(p);</p>
+<p>}</p>
+<p>function _checkAllLocal(node) {</p>
+<p>&nbsp; checkLocalCoherence(node);</p>
+<p>&nbsp; for (const p of node.premises) _checkAllLocal(p);</p>
+<p>}</p>
+<p>/* =====================================================================</p>
+<p>&nbsp; &nbsp;DÉMO — Ce que tu vois à l'écran</p>
+<p>&nbsp; &nbsp;===================================================================== */</p>
+<p>const out = document.getElementById("out");</p>
+<p>function log(html) { out.innerHTML += html + "\n"; }</p>
+<p>/* --- 1. GLYPH --- */</p>
+<p>log('&lt;h2&gt;1. GLYPH v0.0.1 — premier programme&lt;/h2&gt;');</p>
+<p>const firstProof = `# first_proof.glyph</p>
+<p>pense 1</p>
+<p>écris 1 dans M.nombres</p>
+<p>pense 1</p>
+<p>écris 1 dans M.nombres</p>
+<p>lis M.nombres comme N</p>
+<p>pense N.somme</p>
+<p>prouve N.somme == 2</p>
+<p>`;</p>
+<p>try {</p>
+<p>&nbsp; const interp = new Interpreter();</p>
+<p>&nbsp; const result = interp.execute(firstProof);</p>
+<p>&nbsp; log(`&lt;span class="dim"&gt;$ python src/glyph/interpreter.py examples/first_proof.glyph&lt;/span&gt;`);</p>
+<p>&nbsp; log(`&lt;span class="ok"&gt;${JSON.stringify(result)}&lt;/span&gt;`);</p>
+<p>&nbsp; log('&lt;span class="dim"&gt;→ N.somme vaut 2. preuve vaut VALIDE. Premier programme GLYPH validé.&lt;/span&gt;');</p>
+<p>} catch (e) {</p>
+<p>&nbsp; log(`&lt;span class="fail"&gt;ERREUR GLYPH : ${e.message}&lt;/span&gt;`);</p>
+<p>}</p>
+<p>/* --- 2. SERMENT --- */</p>
+<p>log('&lt;h2&gt;2. SERMENT v0.1 — 12 cas de non-régression&lt;/h2&gt;');</p>
+<p>const cases = [</p>
+<p>&nbsp; {</p>
+<p>&nbsp; &nbsp; name: "AX valide",</p>
+<p>&nbsp; &nbsp; derivation: { conclusion: "A ⊢ A", rule: "AX", premises: [] },</p>
+<p>&nbsp; &nbsp; result: "VALIDE"</p>
+<p>&nbsp; },</p>
+<p>&nbsp; {</p>
+<p>&nbsp; &nbsp; name: "→R identité",</p>
+<p>&nbsp; &nbsp; derivation: {</p>
+<p>&nbsp; &nbsp; &nbsp; conclusion: "⊢ A → A", rule: "→R",</p>
+<p>&nbsp; &nbsp; &nbsp; premises: [{ conclusion: "A ⊢ A", rule: "AX", premises: [] }]</p>
+<p>&nbsp; &nbsp; },</p>
+<p>&nbsp; &nbsp; result: "VALIDE"</p>
+<p>&nbsp; },</p>
+<p>&nbsp; {</p>
+<p>&nbsp; &nbsp; name: "⊤R",</p>
+<p>&nbsp; &nbsp; derivation: { conclusion: "⊢ ⊤", rule: "⊤R", premises: [] },</p>
+<p>&nbsp; &nbsp; result: "VALIDE"</p>
+<p>&nbsp; },</p>
+<p>&nbsp; {</p>
+<p>&nbsp; &nbsp; name: "∧R",</p>
+<p>&nbsp; &nbsp; derivation: {</p>
+<p>&nbsp; &nbsp; &nbsp; conclusion: "A, B ⊢ A ∧ B", rule: "∧R",</p>
+<p>&nbsp; &nbsp; &nbsp; premises: [</p>
+<p>&nbsp; &nbsp; &nbsp; &nbsp; { conclusion: "A, B ⊢ A", rule: "AX", premises: [] },</p>
+<p>&nbsp; &nbsp; &nbsp; &nbsp; { conclusion: "A, B ⊢ B", rule: "AX", premises: [] }</p>
+<p>&nbsp; &nbsp; &nbsp; ]</p>
+<p>&nbsp; &nbsp; },</p>
+<p>&nbsp; &nbsp; result: "VALIDE"</p>
+<p>&nbsp; },</p>
+<p>&nbsp; {</p>
+<p>&nbsp; &nbsp; name: "∧L",</p>
+<p>&nbsp; &nbsp; derivation: {</p>
+<p>&nbsp; &nbsp; &nbsp; conclusion: "A ∧ B ⊢ A", rule: "∧L",</p>
+<p>&nbsp; &nbsp; &nbsp; premises: [{ conclusion: "A, B ⊢ A", rule: "AX", premises: [] }]</p>
+<p>&nbsp; &nbsp; },</p>
+<p>&nbsp; &nbsp; result: "VALIDE"</p>
+<p>&nbsp; },</p>
+<p>&nbsp; {</p>
+<p>&nbsp; &nbsp; name: "→L modus ponens",</p>
+<p>&nbsp; &nbsp; derivation: {</p>
+<p>&nbsp; &nbsp; &nbsp; conclusion: "A → B, A ⊢ B", rule: "→L",</p>
+<p>&nbsp; &nbsp; &nbsp; premises: [</p>
+<p>&nbsp; &nbsp; &nbsp; &nbsp; { conclusion: "A → B, A ⊢ A", rule: "AX", premises: [] },</p>
+<p>&nbsp; &nbsp; &nbsp; &nbsp; { conclusion: "A → B, A, B ⊢ B", rule: "AX", premises: [] }</p>
+<p>&nbsp; &nbsp; &nbsp; ]</p>
+<p>&nbsp; &nbsp; },</p>
+<p>&nbsp; &nbsp; result: "VALIDE"</p>
+<p>&nbsp; },</p>
+<p>&nbsp; {</p>
+<p>&nbsp; &nbsp; name: "AX invalide (formule absente)",</p>
+<p>&nbsp; &nbsp; derivation: { conclusion: "B ⊢ A", rule: "AX", premises: [] },</p>
+<p>&nbsp; &nbsp; result: "INVALIDE: AX : 'A' n'appartient pas au contexte {'B'}"</p>
+<p>&nbsp; },</p>
+<p>&nbsp; {</p>
+<p>&nbsp; &nbsp; name: "→R invalide (contexte manquant)",</p>
+<p>&nbsp; &nbsp; derivation: {</p>
+<p>&nbsp; &nbsp; &nbsp; conclusion: "⊢ A → B", rule: "→R",</p>
+<p>&nbsp; &nbsp; &nbsp; premises: [{ conclusion: "⊢ B", rule: "AX", premises: [] }]</p>
+<p>&nbsp; &nbsp; },</p>
+<p>&nbsp; &nbsp; result: "INVALIDE: →R : contexte de la prémisse set() ≠ attendu {'A'}"</p>
+<p>&nbsp; },</p>
+<p>&nbsp; {</p>
+<p>&nbsp; &nbsp; name: "∧R invalide (conclusions incohérentes)",</p>
+<p>&nbsp; &nbsp; derivation: {</p>
+<p>&nbsp; &nbsp; &nbsp; conclusion: "⊢ A ∧ B", rule: "∧R",</p>
+<p>&nbsp; &nbsp; &nbsp; premises: [</p>
+<p>&nbsp; &nbsp; &nbsp; &nbsp; { conclusion: "⊢ A", rule: "AX", premises: [] },</p>
+<p>&nbsp; &nbsp; &nbsp; &nbsp; { conclusion: "⊢ C", rule: "AX", premises: [] }</p>
+<p>&nbsp; &nbsp; &nbsp; ]</p>
+<p>&nbsp; &nbsp; },</p>
+<p>&nbsp; &nbsp; result: "INVALIDE: ∧R : conclusion droite 'C' ≠ 'B'"</p>
+<p>&nbsp; },</p>
+<p>&nbsp; {</p>
+<p>&nbsp; &nbsp; name: "∧L invalide (contexte incorrect)",</p>
+<p>&nbsp; &nbsp; derivation: {</p>
+<p>&nbsp; &nbsp; &nbsp; conclusion: "A ∧ B ⊢ A", rule: "∧L",</p>
+<p>&nbsp; &nbsp; &nbsp; premises: [{ conclusion: "A ⊢ A", rule: "AX", premises: [] }]</p>
+<p>&nbsp; &nbsp; },</p>
+<p>&nbsp; &nbsp; result: "INVALIDE: ∧L : contexte {'A'} ≠ attendu {'A', 'B'}"</p>
+<p>&nbsp; },</p>
+<p>&nbsp; {</p>
+<p>&nbsp; &nbsp; name: "⊤R invalide (mauvaise conclusion)",</p>
+<p>&nbsp; &nbsp; derivation: { conclusion: "⊢ A", rule: "⊤R", premises: [] },</p>
+<p>&nbsp; &nbsp; result: "INVALIDE: ⊤R : conclusion 'A' ≠ '⊤'"</p>
+<p>&nbsp; },</p>
+<p>&nbsp; {</p>
+<p>&nbsp; &nbsp; name: "règle inconnue",</p>
+<p>&nbsp; &nbsp; derivation: { conclusion: "⊢ A ∨ B", rule: "∨R", premises: [] },</p>
+<p>&nbsp; &nbsp; result: "INCONNU: ∨R"</p>
+<p>&nbsp; }</p>
+<p>];</p>
+<p>let passed = 0, failed = 0;</p>
+<p>for (const c of cases) {</p>
+<p>&nbsp; const r = verify(c.derivation, null, false);</p>
+<p>&nbsp; if (r === c.result) {</p>
+<p>&nbsp; &nbsp; passed++;</p>
+<p>&nbsp; &nbsp; log(`&lt;span class="ok"&gt; ✓&lt;/span&gt; ${c.name}`);</p>
+<p>&nbsp; } else {</p>
+<p>&nbsp; &nbsp; failed++;</p>
+<p>&nbsp; &nbsp; log(`&lt;span class="fail"&gt; ✗&lt;/span&gt; ${c.name}`);</p>
+<p>&nbsp; &nbsp; log(`&lt;span class="dim"&gt; attendu : ${c.result}&lt;/span&gt;`);</p>
+<p>&nbsp; &nbsp; log(`&lt;span class="fail"&gt; obtenu : ${r}&lt;/span&gt;`);</p>
+<p>&nbsp; }</p>
+<p>}</p>
+<p>log(`&lt;h2&gt;3. Résultat&lt;/h2&gt;`);</p>
+<p>if (failed === 0) {</p>
+<p>&nbsp; log(`&lt;span class="ok"&gt;12 cas passés. SERMENT v0.1 est VALIDE.&lt;/span&gt;`);</p>
+<p>} else {</p>
+<p>&nbsp; log(`&lt;span class="fail"&gt;${failed} cas échoués sur ${cases.length}.&lt;/span&gt;`);</p>
+<p>}</p>
+<p>/* --- 4. Ledger --- */</p>
+<p>log('&lt;h2&gt;4. Ledger — traçabilité embryonnaire&lt;/h2&gt;');</p>
+<p>Ledger.reset();</p>
+<p>verify({ conclusion: "⊢ A → A", rule: "→R",</p>
+<p>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;premises: [{ conclusion: "A ⊢ A", rule: "AX", premises: [] }] },</p>
+<p>&nbsp; &nbsp; &nbsp; &nbsp;null, true);</p>
+<p>verify({ conclusion: "⊢ ⊤", rule: "⊤R", premises: [] }, null, true);</p>
+<p>log(`&lt;span class="dim"&gt;Entrées dans le Ledger : ${Ledger.entries.length}&lt;/span&gt;`);</p>
+<p>log(`&lt;span class="dim"&gt;Chaîne vérifiée : ${Ledger.verify() ? "OK" : "CASSÉE"}&lt;/span&gt;`);</p>
+<p>for (const e of Ledger.entries) {</p>
+<p>&nbsp; log(`&lt;span class="dim"&gt; seq=${e.seq} ${e.judgment} → ${e.status} [${e.this_hash.slice(0,12)}…]&lt;/span&gt;`);</p>
+<p>}</p>
+<p>log(`&lt;h2&gt;— ORIGEN&lt;/h2&gt;`);</p>
+<p>log(`&lt;span class="dim"&gt;Month 0, Week 1, Day 0.&lt;/span&gt;`);</p>
+<p>&lt;/script&gt;</p>
+<p>&lt;/body&gt;</p>
+<p>&lt;/html&gt;</p>
+</body>
+</html>
