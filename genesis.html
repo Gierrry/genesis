@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GENESIS — ORIGEN</title>
+<style>
+  body { font-family: monospace; background: #0a0a0a; color: #e0e0e0;
+         padding: 16px; font-size: 13px; line-height: 1.5; }
+  h1 { font-size: 12px; color: #666; margin-bottom: 4px; }
+  h2 { font-size: 13px; color: #aaa; margin-top: 20px;
+       border-bottom: 1px solid #222; padding-bottom: 4px; }
+  .ok { color: #6f6; }
+  .fail { color: #f66; }
+  .dim { color: #666; }
+  pre { white-space: pre-wrap; word-break: break-word; margin: 4px 0; }
+</style>
+</head>
+<body>
+<h1>GENESIS — ORIGEN — Month 0, Week 1, Day 0.</h1>
+<div id="out"></div>
+
+<script>
+"use strict";
+
+/* =====================================================================
+   GLYPH v0.0.1 — Interpréteur minimal (JavaScript)
+   — ORIGEN
+   ===================================================================== */
+
+class GlyphError extends Error {}
+
+class Memory {
+  constructor() { this.store = {}; }
+  write(key, value) {
+    if (Object.prototype.hasOwnProperty.call(this.store, key)) {
+      const existing = this.store[key];
+      if (Array.isArray(existing)) existing.push(value);
+      else this.store[key] = [existing, value];
+    } else {
+      this.store[key] = value;
+    }
+  }
+  read(key) {
+    if (!Object.prototype.hasOwnProperty.call(this.store, key)) {
+      throw new GlyphError(`Mémoire : clé inconnue '${key}'`);
+    }
+    return this.store[key];
+  }
+  delete(key) { delete this.store[key]; }
+  snapshot() { return { ...this.store }; }
+}
+
+class WorkingMemory {
+  constructor() { this.stack = []; }
+  push(v) { this.stack.push(v); }
+  top() {
+    if (!this.stack.length) throw new GlyphError("Mémoire de travail vide");
+    return this.stack[this.stack.length - 1];
+  }
+  clear() { this.stack = []; }
+}
+
+class Interpreter {
+  constructor(proofChecker = null) {
+    this.memory = new Memory();
+    this.working = new WorkingMemory();
+    this.proofChecker = proofChecker;
+  }
+
+  parseLine(raw) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) return null;
+    const idx = line.indexOf(" ");
+    let keyword, rest;
+    if (idx === -1) { keyword = line.toLowerCase(); rest = ""; }
+    else { keyword = line.slice(0, idx).toLowerCase(); rest = line.slice(idx + 1); }
+    if (keyword === "ecris" || keyword === "ecrit" || keyword === "écrit") keyword = "écris";
+    const valid = ["pense", "écris", "lis", "prouve", "oublie"];
+    if (!valid.includes(keyword)) {
+      throw new GlyphError(`Opération inconnue : '${keyword}'`);
+    }
+    return [keyword, rest];
+  }
+
+  execute(program) {
+    for (const raw of program.split(/\r?\n/)) {
+      const parsed = this.parseLine(raw);
+      if (!parsed) continue;
+      const [kw, rest] = parsed;
+      this.dispatch(kw, rest);
+    }
+    return this.memory.snapshot();
+  }
+
+  dispatch(keyword, rest) {
+    switch (keyword) {
+      case "pense":   return this._op_pense(rest);
+      case "écris":   return this._op_ecris(rest);
+      case "lis":     return this._op_lis(rest);
+      case "prouve":  return this._op_prouve(rest);
+      case "oublie":  return this._op_oublie(rest);
+      default:
+        throw new GlyphError(`Opération inconnue : '${keyword}'`);
+    }
+  }
+
+  _op_pense(arg) {
+    this.working.push(this._resolve(arg));
+  }
+
+  _op_ecris(arg) {
+    if (!arg.includes(" dans ")) throw new GlyphError("ÉCRIS attend 'X dans M.Y'");
+    const i = arg.indexOf(" dans ");
+    const left = arg.slice(0, i);
+    const right = arg.slice(i + 6);
+    const value = this._resolve(left.trim());
+    const key = right.trim();
+    if (!key.startsWith("M.")) throw new GlyphError("ÉCRIS : cible doit commencer par 'M.'");
+    this.memory.write(key.slice(2), value);
+  }
+
+  _op_lis(arg) {
+    if (!arg.includes(" comme ")) throw new GlyphError("LIS attend 'M.X comme Y'");
+    const i = arg.indexOf(" comme ");
+    const src = arg.slice(0, i).trim();
+    const name = arg.slice(i + 7).trim();
+    if (!src.startsWith("M.")) throw new GlyphError("LIS : source doit commencer par 'M.'");
+    this.memory.write(name, this.memory.read(src.slice(2)));
+  }
+
+  _op_prouve(arg) {
+    const expr = arg.trim();
+    if (!expr.includes("==")) throw new GlyphError("PROUVE : forme 'X == Y' seulement");
+    const i = expr.indexOf("==");
+    const lval = this._resolve(expr.slice(0, i).trim());
+    const rval = this._resolve(expr.slice(i + 2).trim());
+    this.memory.write("preuve", lval === rval ? "VALIDE" : "INVALIDE");
+  }
+
+  _op_oublie(arg) {
+    const key = arg.trim();
+    if (!key.startsWith("M.")) throw new GlyphError("OUBLIE : cible doit commencer par 'M.'");
+    this.memory.delete(key.slice(2));
+  }
+
+  _resolve(token) {
+    token = token.trim();
+    if (!token) throw new GlyphError("Symbole vide");
+
+    const isNumber = /^-?\d+(\.\d+)?$/.test(token);
+    if (token.includes(".") && !isNumber) {
+      const dot = token.indexOf(".");
+      const head = token.slice(0, dot);
+      const tail = token.slice(dot + 1);
+      const base = this.memory.read(head);
+      if (tail === "somme" && Array.isArray(base)) {
+        return base.reduce((a, b) => a + b, 0);
+      }
+      if (base && typeof base === "object" && !Array.isArray(base)) {
+        if (!(tail in base)) {
+          throw new GlyphError(`Champ inconnu '${tail}' dans '${head}'`);
+        }
+        return base[tail];
+      }
+      throw new GlyphError(`Référence mémoire invalide : '${token}'`);
+    }
+
+    if (token.startsWith("[") && token.endsWith("]")) {
+      const inner = token.slice(1, -1).trim();
+      if (!inner) return [];
+      return inner.split(",").map(x => this._resolve(x));
+    }
+
+    if (/^-?\d+$/.test(token)) return parseInt(token, 10);
+    if (/^-?\d+\.\d+$/.test(token)) return parseFloat(token);
+    return token;
+  }
+}
+
+/* =====================================================================
+   SERMENT v0.1 — Vérificateur minimal (JavaScript)
+   — ORIGEN
+   ===================================================================== */
+
+class LocalCoherenceError extends Error {}
+class UnknownRule extends Error {}
+
+/* --- Utilitaires de Set --- */
+function setEq(a, b) {
+  if (a.size !== b.size) return false;
+  for (const x of a) if (!b.has(x)) return false;
+  return true;
+}
+function setUnion(...sets) {
+  const r = new Set();
+  for (const s of sets) for (const x of s) r.add(x);
+  return r;
+}
+function setDiff(a, b) {
+  const r = new Set();
+  for (const x of a) if (!b.has(x)) r.add(x);
+  return r;
+}
+function formatSet(s) {
+  if (s.size === 0) return "set()";
+  const arr = Array.from(s).sort();
+  return "{" + arr.map(x => `'${x}'`).join(", ") + "}";
+}
+
+/* --- Parser --- */
+function stripParens(s) {
+  s = s.trim();
+  while (s.startsWith("(") && s.endsWith(")")) {
+    let depth = 0, ok = true;
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (c === "(") depth++;
+      else if (c === ")") {
+        depth--;
+        if (depth === 0 && i !== s.length - 1) { ok = false; break; }
+      }
+    }
+    if (!ok) break;
+    s = s.slice(1, -1).trim();
+  }
+  return s;
+}
+
+function splitTop(formula, op) {
+  let depth = 0;
+  for (let i = 0; i < formula.length; i++) {
+    const c = formula[i];
+    if (c === "(") depth++;
+    else if (c === ")") depth--;
+    else if (depth === 0 && formula.slice(i, i + op.length) === op) {
+      const left = formula.slice(0, i).trim();
+      const right = formula.slice(i + op.length).trim();
+      if (!left || !right) {
+        throw new Error(`Formule mal formée autour de '${op}' : ${formula}`);
+      }
+      return [left, right];
+    }
+  }
+  throw new Error(`Opérateur '${op}' introuvable au niveau supérieur : ${formula}`);
+}
+
+function splitImplication(f) { return splitTop(f, "→"); }
+function splitConjunction(f) { return splitTop(f, "∧"); }
+
+function splitContext(text) {
+  const parts = [];
+  let depth = 0, current = "";
+  for (const c of text) {
+    if (c === "(") { depth++; current += c; }
+    else if (c === ")") { depth--; current += c; }
+    else if (c === "," && depth === 0) { parts.push(current.trim()); current = ""; }
+    else current += c;
+  }
+  if (current) parts.push(current.trim());
+  return parts.filter(p => p).map(stripParens);
+}
+
+function parseJudgment(text) {
+  if (!text.includes("⊢")) throw new Error(`Jugement sans ⊢ : ${text}`);
+  const idx = text.indexOf("⊢");
+  const left = text.slice(0, idx).trim();
+  const right = stripParens(text.slice(idx + 1).trim());
+  if (!right) throw new Error(`Conclusion vide dans : ${text}`);
+  let ctx;
+  if (left === "" || left === "∅") ctx = new Set();
+  else ctx = new Set(splitContext(left));
+  return { context: ctx, conclusion: right };
+}
+
+/* --- Cohérence locale --- */
+function checkLocalCoherence(node) {
+  const rule = node.rule;
+  const prems = node.premises;
+  const conc = parseJudgment(node.conclusion);
+
+  switch (rule) {
+    case "AX":   return _checkAx(conc, prems);
+    case "→R":   return _checkImplRight(conc, prems);
+    case "→L":   return _checkImplLeft(conc, prems);
+    case "∧R":   return _checkConjRight(conc, prems);
+    case "∧L":   return _checkConjLeft(conc, prems);
+    case "⊤R":   return _checkTop(conc);
+    default: throw new LocalCoherenceError(`Règle inconnue : ${rule}`);
+  }
+}
+
+function _checkAx(conc, prems) {
+  if (prems.length !== 0) throw new LocalCoherenceError("AX ne doit avoir aucune prémisse");
+  if (!conc.context.has(conc.conclusion)) {
+    throw new LocalCoherenceError(
+      `AX : '${conc.conclusion}' n'appartient pas au contexte ${formatSet(conc.context)}`
+    );
+  }
+}
+
+function _checkImplRight(conc, prems) {
+  if (prems.length !== 1) throw new LocalCoherenceError("→R attend exactement une prémisse");
+  const prem = parseJudgment(prems[0].conclusion);
+  let A, B;
+  try { [A, B] = splitImplication(conc.conclusion); }
+  catch (e) { throw new LocalCoherenceError(`→R : conclusion n'est pas une implication (${e.message})`); }
+  const expectedCtx = setUnion(conc.context, new Set([A]));
+  if (!setEq(prem.context, expectedCtx)) {
+    throw new LocalCoherenceError(
+      `→R : contexte de la prémisse ${formatSet(prem.context)} ≠ attendu ${formatSet(expectedCtx)}`
+    );
+  }
+  if (stripParens(prem.conclusion) !== stripParens(B)) {
+    throw new LocalCoherenceError(
+      `→R : conclusion de la prémisse '${prem.conclusion}' ≠ '${B}'`
+    );
+  }
+}
+
+/* === VERSION CORRIGÉE v0.1.1 === */
+function _checkImplLeft(conc, prems) {
+  if (prems.length !== 2) throw new LocalCoherenceError("→L attend exactement deux prémisses");
+  const prem1 = parseJudgment(prems[0].conclusion);
+  const prem2 = parseJudgment(prems[1].conclusion);
+
+  // Trouver A → B dans le contexte de la conclusion
+  let impl = null;
+  for (const f of conc.context) {
+    try {
+      const [A, B] = splitImplication(f);
+      impl = { formula: f, A, B };
+      break;
+    } catch (_) { /* continue */ }
+  }
+  if (!impl) {
+    throw new LocalCoherenceError(
+      "→L : aucune implication trouvée dans le contexte de la conclusion"
+    );
+  }
+  const { formula: implFormula, A, B: implB } = impl;
+
+  // prem1.conclusion doit être A
+  if (stripParens(prem1.conclusion) !== stripParens(A)) {
+    throw new LocalCoherenceError(
+      `→L : conclusion gauche '${prem1.conclusion}' ≠ '${A}'`
+    );
+  }
+
+  // prem2.conclusion doit être conc.conclusion
+  if (stripParens(prem2.conclusion) !== stripParens(conc.conclusion)) {
+    throw new LocalCoherenceError(
+      `→L : conclusion droite '${prem2.conclusion}' ≠ '${conc.conclusion}'`
+    );
+  }
+
+  // implB (conséquent de l'implication) doit être dans le contexte de prem2
+  if (!prem2.context.has(implB)) {
+    throw new LocalCoherenceError(
+      `→L : '${implB}' n'appartient pas au contexte droit ${formatSet(prem2.context)}`
+    );
+  }
+
+  // conc.context == prem1.context ∪ (prem2.context - {implB}) ∪ {implFormula}
+  const expectedCtx = setUnion(
+    prem1.context,
+    setDiff(prem2.context, new Set([implB])),
+    new Set([implFormula])
+  );
+  if (!setEq(conc.context, expectedCtx)) {
+    throw new LocalCoherenceError(
+      `→L : contexte de la conclusion ${formatSet(conc.context)} ≠ attendu ${formatSet(expectedCtx)}`
+    );
+  }
+}
+
+function _checkConjRight(conc, prems) {
+  if (prems.length !== 2) throw new LocalCoherenceError("∧R attend exactement deux prémisses");
+  const prem1 = parseJudgment(prems[0].conclusion);
+  const prem2 = parseJudgment(prems[1].conclusion);
+  let A, B;
+  try { [A, B] = splitConjunction(conc.conclusion); }
+  catch (e) { throw new LocalCoherenceError(`∧R : conclusion n'est pas une conjonction (${e.message})`); }
+  if (!setEq(prem1.context, conc.context)) {
+    throw new LocalCoherenceError("∧R : contexte prémisse gauche ≠ contexte conclusion");
+  }
+  if (!setEq(prem2.context, conc.context)) {
+    throw new LocalCoherenceError("∧R : contexte prémisse droite ≠ contexte conclusion");
+  }
+  if (stripParens(prem1.conclusion) !== stripParens(A)) {
+    throw new LocalCoherenceError(`∧R : conclusion gauche '${prem1.conclusion}' ≠ '${A}'`);
+  }
+  if (stripParens(prem2.conclusion) !== stripParens(B)) {
+    throw new LocalCoherenceError(`∧R : conclusion droite '${prem2.conclusion}' ≠ '${B}'`);
+  }
+}
+
+function _checkConjLeft(conc, prems) {
+  if (prems.length !== 1) throw new LocalCoherenceError("∧L attend exactement une prémisse");
+  const prem = parseJudgment(prems[0].conclusion);
+  let conj = null;
+  for (const f of conc.context) {
+    try {
+      const [A, B] = splitConjunction(f);
+      conj = [f, A, B];
+      break;
+    } catch (_) { /* continue */ }
+  }
+  if (!conj) {
+    throw new LocalCoherenceError(
+      "∧L : aucune conjonction trouvée dans le contexte de la conclusion"
+    );
+  }
+  const [conjFormula, A, B] = conj;
+  const expectedCtx = setUnion(setDiff(conc.context, new Set([conjFormula])), new Set([A, B]));
+  if (!setEq(prem.context, expectedCtx)) {
+    throw new LocalCoherenceError(
+      `∧L : contexte ${formatSet(prem.context)} ≠ attendu ${formatSet(expectedCtx)}`
+    );
+  }
+  if (stripParens(prem.conclusion) !== stripParens(conc.conclusion)) {
+    throw new LocalCoherenceError(
+      `∧L : conclusion '${prem.conclusion}' ≠ '${conc.conclusion}'`
+    );
+  }
+}
+
+function _checkTop(conc) {
+  if (conc.conclusion !== "⊤") {
+    throw new LocalCoherenceError(`⊤R : conclusion '${conc.conclusion}' ≠ '⊤'`);
+  }
+}
+
+/* --- Ledger (version démo : hash simplifié, en mémoire) --- */
+const Ledger = {
+  entries: [],
+  hashEntry(entry) {
+    // NOTE v0.1 : hash simplifié pour démo mobile. Non cryptographique.
+    // À remplacer par crypto.subtle.digest (SHA-256) en v0.2.
+    const str = JSON.stringify(entry, Object.keys(entry).sort());
+    let h1 = 0x811c9dc5 >>> 0, h2 = 0x1000193 >>> 0;
+    for (let i = 0; i < str.length; i++) {
+      const c = str.charCodeAt(i);
+      h1 ^= c; h1 = Math.imul(h1, 0x01000193) >>> 0;
+      h2 = (Math.imul(h2, 31) + c) >>> 0;
+    }
+    let out = "";
+    for (let i = 0; i < 4; i++) {
+      out += (h1 >>> 0).toString(16).padStart(8, "0");
+      out += (h2 >>> 0).toString(16).padStart(8, "0");
+    }
+    return out.slice(0, 64);
+  },
+  append(judgment, derivationId, status) {
+    const prev = this.entries.length ? this.entries[this.entries.length - 1].this_hash : "0".repeat(64);
+    const entry = {
+      seq: this.entries.length,
+      prev_hash: prev,
+      timestamp: new Date().toISOString().replace(/\.\d+Z$/, "Z"),
+      judgment, derivation_id: derivationId, status,
+    };
+    entry.this_hash = this.hashEntry(entry);
+    this.entries.push(entry);
+    return entry;
+  },
+  verify() {
+    let prev = "0".repeat(64);
+    for (const e of this.entries) {
+      if (e.prev_hash !== prev) return false;
+      const recomputed = this.hashEntry(
+        Object.fromEntries(Object.entries(e).filter(([k]) => k !== "this_hash"))
+      );
+      if (recomputed !== e.this_hash) return false;
+      prev = e.this_hash;
+    }
+    return true;
+  },
+  reset() { this.entries = []; },
+};
+
+/* --- Verify --- */
+const KNOWN_RULES = new Set(["AX", "→R", "→L", "∧R", "∧L", "⊤R"]);
+const ARITY = { "AX": 0, "→R": 1, "→L": 2, "∧R": 2, "∧L": 1, "⊤R": 0 };
+
+function nodeId(node) {
+  const str = JSON.stringify({ conclusion: node.conclusion, rule: node.rule });
+  return Ledger.hashEntry({ s: str }).slice(0, 12);
+}
+
+function verify(derivation, expected = null, useLedger = true) {
+  try {
+    _checkStructure(derivation);
+    _checkRuleKnown(derivation);
+    _checkArity(derivation);
+    _checkAllLocal(derivation);
+  } catch (e) {
+    if (e instanceof UnknownRule) {
+      if (useLedger) Ledger.append(derivation.conclusion || "?", nodeId(derivation), "INCONNU");
+      return `INCONNU: ${e.message}`;
+    }
+    if (useLedger) Ledger.append(derivation.conclusion || "?", nodeId(derivation), "INVALIDE");
+    return `INVALIDE: ${e.message}`;
+  }
+  if (expected !== null && derivation.conclusion !== expected) {
+    if (useLedger) Ledger.append(derivation.conclusion, nodeId(derivation), "INVALIDE");
+    return `INVALIDE: conclusion '${derivation.conclusion}' ≠ attendu '${expected}'`;
+  }
+  if (useLedger) Ledger.append(derivation.conclusion, nodeId(derivation), "VALIDE");
+  return "VALIDE";
+}
+
+function _checkStructure(node) {
+  if (typeof node !== "object" || node === null) throw new TypeError("Nœud invalide : pas un objet");
+  for (const f of ["conclusion", "rule", "premises"]) {
+    if (!(f in node)) throw new Error(`Champ manquant : '${f}'`);
+  }
+  if (!Array.isArray(node.premises)) throw new TypeError("'premises' doit être un tableau");
+  for (const p of node.premises) _checkStructure(p);
+}
+function _checkRuleKnown(node) {
+  if (!KNOWN_RULES.has(node.rule)) throw new UnknownRule(node.rule);
+  for (const p of node.premises) _checkRuleKnown(p);
+}
+function _checkArity(node) {
+  const expected = ARITY[node.rule];
+  if (node.premises.length !== expected) {
+    throw new Error(
+      `Règle ${node.rule} attend ${expected} prémisse(s), reçu ${node.premises.length}`
+    );
+  }
+  for (const p of node.premises) _checkArity(p);
+}
+function _checkAllLocal(node) {
+  checkLocalCoherence(node);
+  for (const p of node.premises) _checkAllLocal(p);
+}
+
+/* =====================================================================
+   DÉMO — Ce que tu vois à l'écran
+   ===================================================================== */
+
+const out = document.getElementById("out");
+function log(html) { out.innerHTML += html + "\n"; }
+
+/* --- 1. GLYPH --- */
+log('<h2>1. GLYPH v0.0.1 — premier programme</h2>');
+
+const firstProof = `# first_proof.glyph
+pense 1
+écris 1 dans M.nombres
+
+pense 1
+écris 1 dans M.nombres
+
+lis M.nombres comme N
+pense N.somme
+
+prouve N.somme == 2
+`;
+
+try {
+  const interp = new Interpreter();
+  const result = interp.execute(firstProof);
+  log(`<span class="dim">$ python src/glyph/interpreter.py examples/first_proof.glyph</span>`);
+  log(`<span class="ok">${JSON.stringify(result)}</span>`);
+  log('<span class="dim">→ N.somme vaut 2. preuve vaut VALIDE. Premier programme GLYPH validé.</span>');
+} catch (e) {
+  log(`<span class="fail">ERREUR GLYPH : ${e.message}</span>`);
+}
+
+/* --- 2. SERMENT --- */
+log('<h2>2. SERMENT v0.1 — 12 cas de non-régression</h2>');
+
+const cases = [
+  {
+    name: "AX valide",
+    derivation: { conclusion: "A ⊢ A", rule: "AX", premises: [] },
+    result: "VALIDE"
+  },
+  {
+    name: "→R identité",
+    derivation: {
+      conclusion: "⊢ A → A", rule: "→R",
+      premises: [{ conclusion: "A ⊢ A", rule: "AX", premises: [] }]
+    },
+    result: "VALIDE"
+  },
+  {
+    name: "⊤R",
+    derivation: { conclusion: "⊢ ⊤", rule: "⊤R", premises: [] },
+    result: "VALIDE"
+  },
+  {
+    name: "∧R",
+    derivation: {
+      conclusion: "A, B ⊢ A ∧ B", rule: "∧R",
+      premises: [
+        { conclusion: "A, B ⊢ A", rule: "AX", premises: [] },
+        { conclusion: "A, B ⊢ B", rule: "AX", premises: [] }
+      ]
+    },
+    result: "VALIDE"
+  },
+  {
+    name: "∧L",
+    derivation: {
+      conclusion: "A ∧ B ⊢ A", rule: "∧L",
+      premises: [{ conclusion: "A, B ⊢ A", rule: "AX", premises: [] }]
+    },
+    result: "VALIDE"
+  },
+  {
+    name: "→L modus ponens",
+    derivation: {
+      conclusion: "A → B, A ⊢ B", rule: "→L",
+      premises: [
+        { conclusion: "A → B, A ⊢ A", rule: "AX", premises: [] },
+        { conclusion: "A → B, A, B ⊢ B", rule: "AX", premises: [] }
+      ]
+    },
+    result: "VALIDE"
+  },
+  {
+    name: "AX invalide (formule absente)",
+    derivation: { conclusion: "B ⊢ A", rule: "AX", premises: [] },
+    result: "INVALIDE: AX : 'A' n'appartient pas au contexte {'B'}"
+  },
+  {
+    name: "→R invalide (contexte manquant)",
+    derivation: {
+      conclusion: "⊢ A → B", rule: "→R",
+      premises: [{ conclusion: "⊢ B", rule: "AX", premises: [] }]
+    },
+    result: "INVALIDE: →R : contexte de la prémisse set() ≠ attendu {'A'}"
+  },
+  {
+    name: "∧R invalide (conclusions incohérentes)",
+    derivation: {
+      conclusion: "⊢ A ∧ B", rule: "∧R",
+      premises: [
+        { conclusion: "⊢ A", rule: "AX", premises: [] },
+        { conclusion: "⊢ C", rule: "AX", premises: [] }
+      ]
+    },
+    result: "INVALIDE: ∧R : conclusion droite 'C' ≠ 'B'"
+  },
+  {
+    name: "∧L invalide (contexte incorrect)",
+    derivation: {
+      conclusion: "A ∧ B ⊢ A", rule: "∧L",
+      premises: [{ conclusion: "A ⊢ A", rule: "AX", premises: [] }]
+    },
+    result: "INVALIDE: ∧L : contexte {'A'} ≠ attendu {'A', 'B'}"
+  },
+  {
+    name: "⊤R invalide (mauvaise conclusion)",
+    derivation: { conclusion: "⊢ A", rule: "⊤R", premises: [] },
+    result: "INVALIDE: ⊤R : conclusion 'A' ≠ '⊤'"
+  },
+  {
+    name: "règle inconnue",
+    derivation: { conclusion: "⊢ A ∨ B", rule: "∨R", premises: [] },
+    result: "INCONNU: ∨R"
+  }
+];
+
+let passed = 0, failed = 0;
+for (const c of cases) {
+  const r = verify(c.derivation, null, false);
+  if (r === c.result) {
+    passed++;
+    log(`<span class="ok">  ✓</span> ${c.name}`);
+  } else {
+    failed++;
+    log(`<span class="fail">  ✗</span> ${c.name}`);
+    log(`<span class="dim">      attendu : ${c.result}</span>`);
+    log(`<span class="fail">      obtenu  : ${r}</span>`);
+  }
+}
+
+log(`<h2>3. Résultat</h2>`);
+if (failed === 0) {
+  log(`<span class="ok">12 cas passés. SERMENT v0.1 est VALIDE.</span>`);
+} else {
+  log(`<span class="fail">${failed} cas échoués sur ${cases.length}.</span>`);
+}
+
+/* --- 4. Ledger --- */
+log('<h2>4. Ledger — traçabilité embryonnaire</h2>');
+Ledger.reset();
+verify({ conclusion: "⊢ A → A", rule: "→R",
+         premises: [{ conclusion: "A ⊢ A", rule: "AX", premises: [] }] },
+       null, true);
+verify({ conclusion: "⊢ ⊤", rule: "⊤R", premises: [] }, null, true);
+log(`<span class="dim">Entrées dans le Ledger : ${Ledger.entries.length}</span>`);
+log(`<span class="dim">Chaîne vérifiée : ${Ledger.verify() ? "OK" : "CASSÉE"}</span>`);
+for (const e of Ledger.entries) {
+  log(`<span class="dim">  seq=${e.seq}  ${e.judgment}  → ${e.status}  [${e.this_hash.slice(0,12)}…]</span>`);
+}
+
+log(`<h2>— ORIGEN</h2>`);
+log(`<span class="dim">Month 0, Week 1, Day 0.</span>`);
+</script>
+</body>
+</html>
